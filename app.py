@@ -4,26 +4,24 @@ import joblib
 
 st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 
-# ---------- LOAD MODEL OBJECT ----------
+# ---------- LOAD MODEL ----------
 @st.cache_resource
 def load_model():
     obj = joblib.load("model.joblib")
 
-    # Case 1: You saved a pipeline directly
     if hasattr(obj, "predict"):
         return obj
 
-    # Case 2: You saved dict of objects
     if isinstance(obj, dict):
         for key in obj:
             if hasattr(obj[key], "predict"):
                 return obj[key]
 
-    raise Exception("No valid model found in model.joblib")
+    raise Exception("Model not found in model.joblib")
 
 model = load_model()
 
-# ---------- STYLE ----------
+# ---------- UI STYLE ----------
 st.markdown("""
 <style>
 .stApp { background: linear-gradient(135deg, #667eea, #764ba2); }
@@ -31,7 +29,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧠 Stroke Risk Prediction System")
+st.title("🧠 Stroke Risk Prediction")
 
 # ---------- FORM ----------
 with st.form("form"):
@@ -66,6 +64,23 @@ if submit:
         "smoking_status": smoking_status
     }])
 
+    # -------- FEATURE ENGINEERING (MATCH TRAINING) --------
+    input_data["bmi_capped"] = input_data["bmi"].clip(upper=50)
+
+    # One-Hot Encoding
+    input_data = pd.get_dummies(input_data)
+
+    # Add any missing training columns
+    model_features = model.feature_names_in_
+
+    for col in model_features:
+        if col not in input_data.columns:
+            input_data[col] = 0
+
+    # Keep only columns model expects
+    input_data = input_data[model_features]
+
+    # -------- PREDICT --------
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
 
