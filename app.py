@@ -7,10 +7,10 @@ st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 
 # ---------- LOAD MODEL ----------
 @st.cache_resource
-def load_objects():
+def load_model():
     return joblib.load("model.joblib")
 
-objects = load_objects()
+objects = load_model()
 
 model = objects["model"]      
 scaler = objects["scaler"]    
