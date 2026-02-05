@@ -8,18 +8,24 @@ st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 # ---------- LOAD MODEL ----------
 @st.cache_resource
 def load_model():
-    return joblib.load("model.joblib")
+    objects = joblib.load("model.joblib")  
 
-objects = load_model()
+    # Auto-detect model key
+    model_key = None
+    for k in objects.keys():
+        if "model" in k.lower() or "clf" in k.lower():
+            model_key = k
+            break
 
-model = objects["model"]      
-scaler = objects["scaler"]    
-encoder = objects.get("encoder", None)  
+    model = objects[model_key]
+    scaler = objects.get("scaler")
+    encoder = objects.get("encoder")
 
+    return model, scaler, encoder
 
-model = load_model()
+model, scaler, encoder = load_model()
 
-# ---------- BACKGROUND STYLE ----------
+# ---------- UI STYLE ----------
 st.markdown("""
 <style>
 .stApp {
@@ -37,7 +43,7 @@ st.markdown("""
 st.title("🧠 Stroke Risk Prediction System")
 st.write("Enter patient health details below.")
 
-# ---------- INPUT FORM ----------
+# ---------- FORM ----------
 with st.form("prediction_form"):
 
     age = st.slider("Age", 1, 100, 30)
@@ -56,25 +62,13 @@ with st.form("prediction_form"):
 # ---------- PREDICTION ----------
 if submit:
 
-    # Convert categorical to numeric (MUST match training encoding)
+    # Convert categorical
     gender = 1 if gender == "Male" else 0
     ever_married = 1 if ever_married == "Yes" else 0
     residence_type = 1 if residence_type == "Urban" else 0
 
-    work_map = {
-        "Private": 0,
-        "Self-employed": 1,
-        "Govt_job": 2,
-        "children": 3,
-        "Never_worked": 4
-    }
-
-    smoke_map = {
-        "formerly smoked": 0,
-        "never smoked": 1,
-        "smokes": 2,
-        "Unknown": 3
-    }
+    work_map = {"Private": 0, "Self-employed": 1, "Govt_job": 2, "children": 3, "Never_worked": 4}
+    smoke_map = {"formerly smoked": 0, "never smoked": 1, "smokes": 2, "Unknown": 3}
 
     input_data = pd.DataFrame([{
         "age": age,
@@ -89,6 +83,15 @@ if submit:
         "smoking_status": smoke_map[smoking_status]
     }])
 
+    # Apply encoder if exists
+    if encoder is not None:
+        input_data = encoder.transform(input_data)
+
+    # Apply scaler if exists
+    if scaler is not None:
+        input_data = scaler.transform(input_data)
+
+    # Predict
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
 
