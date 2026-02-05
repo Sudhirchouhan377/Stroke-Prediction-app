@@ -2,28 +2,19 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 
 # ---------- LOAD MODEL ----------
 @st.cache_resource
 def load_model():
-    objects = joblib.load("model.joblib")  
+    objects = joblib.load("model.joblib")
 
-    # Auto-detect model key
-    model_key = None
-    for k in objects.keys():
-        if "model" in k.lower() or "clf" in k.lower():
-            model_key = k
-            break
+    model = objects.get("model", objects)
+    scaler = objects.get("scaler", None)
 
-    model = objects[model_key]
-    scaler = objects.get("scaler")
-    encoder = objects.get("encoder")
+    return model, scaler
 
-    return model, scaler, encoder
-
-model, scaler, encoder = load_model()
+model, scaler = load_model()
 
 # ---------- UI STYLE ----------
 st.markdown("""
@@ -39,36 +30,48 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- TITLE ----------
 st.title("🧠 Stroke Risk Prediction System")
-st.write("Enter patient health details below.")
+st.write("Enter patient health details")
 
 # ---------- FORM ----------
-with st.form("prediction_form"):
+with st.form("form"):
 
     age = st.slider("Age", 1, 100, 30)
     hypertension = st.selectbox("Hypertension", [0, 1])
     heart_disease = st.selectbox("Heart Disease", [0, 1])
-    avg_glucose_level = st.number_input("Average Glucose Level", 50.0, 300.0, 100.0)
+    avg_glucose_level = st.number_input("Glucose Level", 50.0, 300.0, 100.0)
     bmi = st.number_input("BMI", 10.0, 60.0, 25.0)
+
     gender = st.selectbox("Gender", ["Male", "Female"])
     ever_married = st.selectbox("Ever Married", ["Yes", "No"])
     work_type = st.selectbox("Work Type", ["Private", "Self-employed", "Govt_job", "children", "Never_worked"])
     residence_type = st.selectbox("Residence Type", ["Urban", "Rural"])
     smoking_status = st.selectbox("Smoking Status", ["formerly smoked", "never smoked", "smokes", "Unknown"])
 
-    submit = st.form_submit_button("Predict Stroke Risk")
+    submit = st.form_submit_button("Predict")
 
 # ---------- PREDICTION ----------
 if submit:
 
-    # Convert categorical
+    # Encode categorical (MUST match training)
     gender = 1 if gender == "Male" else 0
     ever_married = 1 if ever_married == "Yes" else 0
     residence_type = 1 if residence_type == "Urban" else 0
 
-    work_map = {"Private": 0, "Self-employed": 1, "Govt_job": 2, "children": 3, "Never_worked": 4}
-    smoke_map = {"formerly smoked": 0, "never smoked": 1, "smokes": 2, "Unknown": 3}
+    work_map = {
+        "Private": 0,
+        "Self-employed": 1,
+        "Govt_job": 2,
+        "children": 3,
+        "Never_worked": 4
+    }
+
+    smoke_map = {
+        "formerly smoked": 0,
+        "never smoked": 1,
+        "smokes": 2,
+        "Unknown": 3
+    }
 
     input_data = pd.DataFrame([{
         "age": age,
@@ -79,25 +82,36 @@ if submit:
         "gender": gender,
         "ever_married": ever_married,
         "work_type": work_map[work_type],
-        "Residence_type": residence_type,
+        "Residence_type": residence_type,   # CASE SENSITIVE
         "smoking_status": smoke_map[smoking_status]
     }])
 
-    # Apply encoder if exists
-    if encoder is not None:
-        input_data = encoder.transform(input_data)
+    # EXACT training feature order
+    feature_order = [
+        'age',
+        'hypertension',
+        'heart_disease',
+        'avg_glucose_level',
+        'bmi',
+        'gender',
+        'ever_married',
+        'work_type',
+        'Residence_type',
+        'smoking_status'
+    ]
 
-    # Apply scaler if exists
+    input_data = input_data[feature_order]
+
+    # Apply scaler if used in training
     if scaler is not None:
         input_data = scaler.transform(input_data)
 
-    # Predict
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
 
-    st.subheader("🩺 Prediction Result")
+    st.subheader("🩺 Result")
 
     if prediction == 1:
-        st.error(f"⚠ High Stroke Risk ({probability:.2%} probability)")
+        st.error(f"⚠ High Stroke Risk ({probability:.2%})")
     else:
-        st.success(f"✅ Low Stroke Risk ({probability:.2%} probability)")
+        st.success(f"✅ Low Stroke Risk ({probability:.2%})")
