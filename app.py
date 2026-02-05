@@ -4,29 +4,18 @@ import joblib
 
 st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 
-# ---------- LOAD MODEL ----------
+# ---------- LOAD PIPELINE MODEL ----------
 @st.cache_resource
 def load_model():
-    objects = joblib.load("model.joblib")
+    return joblib.load("model.joblib")
 
-    model = objects.get("model", objects)
-    scaler = objects.get("scaler", None)
+model = load_model()
 
-    return model, scaler
-
-model, scaler = load_model()
-
-# ---------- UI STYLE ----------
+# ---------- STYLE ----------
 st.markdown("""
 <style>
-.stApp {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-}
-.block-container {
-    background: rgba(255,255,255,0.08);
-    padding: 2rem;
-    border-radius: 15px;
-}
+.stApp { background: linear-gradient(135deg, #667eea, #764ba2); }
+.block-container { background: rgba(255,255,255,0.08); padding: 2rem; border-radius: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -50,28 +39,8 @@ with st.form("form"):
 
     submit = st.form_submit_button("Predict")
 
-# ---------- PREDICTION ----------
+# ---------- PREDICT ----------
 if submit:
-
-    # Encode categorical (MUST match training)
-    gender = 1 if gender == "Male" else 0
-    ever_married = 1 if ever_married == "Yes" else 0
-    residence_type = 1 if residence_type == "Urban" else 0
-
-    work_map = {
-        "Private": 0,
-        "Self-employed": 1,
-        "Govt_job": 2,
-        "children": 3,
-        "Never_worked": 4
-    }
-
-    smoke_map = {
-        "formerly smoked": 0,
-        "never smoked": 1,
-        "smokes": 2,
-        "Unknown": 3
-    }
 
     input_data = pd.DataFrame([{
         "age": age,
@@ -81,30 +50,10 @@ if submit:
         "bmi": bmi,
         "gender": gender,
         "ever_married": ever_married,
-        "work_type": work_map[work_type],
-        "Residence_type": residence_type,   # CASE SENSITIVE
-        "smoking_status": smoke_map[smoking_status]
+        "work_type": work_type,
+        "Residence_type": residence_type,   # EXACT spelling
+        "smoking_status": smoking_status
     }])
-
-    # EXACT training feature order
-    feature_order = [
-        'age',
-        'hypertension',
-        'heart_disease',
-        'avg_glucose_level',
-        'bmi',
-        'gender',
-        'ever_married',
-        'work_type',
-        'Residence_type',
-        'smoking_status'
-    ]
-
-    input_data = input_data[feature_order]
-
-    # Apply scaler if used in training
-    if scaler is not None:
-        input_data = scaler.transform(input_data)
 
     prediction = model.predict(input_data)[0]
     probability = model.predict_proba(input_data)[0][1]
