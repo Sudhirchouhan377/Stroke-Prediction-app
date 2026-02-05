@@ -4,10 +4,22 @@ import joblib
 
 st.set_page_config(page_title="Stroke Risk Predictor", layout="centered")
 
-# ---------- LOAD PIPELINE MODEL ----------
+# ---------- LOAD MODEL OBJECT ----------
 @st.cache_resource
 def load_model():
-    return joblib.load("model.joblib")
+    obj = joblib.load("model.joblib")
+
+    # Case 1: You saved a pipeline directly
+    if hasattr(obj, "predict"):
+        return obj
+
+    # Case 2: You saved dict of objects
+    if isinstance(obj, dict):
+        for key in obj:
+            if hasattr(obj[key], "predict"):
+                return obj[key]
+
+    raise Exception("No valid model found in model.joblib")
 
 model = load_model()
 
@@ -20,7 +32,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🧠 Stroke Risk Prediction System")
-st.write("Enter patient health details")
 
 # ---------- FORM ----------
 with st.form("form"):
@@ -39,7 +50,7 @@ with st.form("form"):
 
     submit = st.form_submit_button("Predict")
 
-# ---------- PREDICT ----------
+# ---------- PREDICTION ----------
 if submit:
 
     input_data = pd.DataFrame([{
@@ -51,7 +62,7 @@ if submit:
         "gender": gender,
         "ever_married": ever_married,
         "work_type": work_type,
-        "Residence_type": residence_type,   # EXACT spelling
+        "Residence_type": residence_type,
         "smoking_status": smoking_status
     }])
 
